@@ -40,7 +40,7 @@ public class FranugVip : BasePlugin, IPluginConfig<ConfigGen>
 {
     public override string ModuleName => "Franug Vip";
     public override string ModuleAuthor => "Franc1sco Franug";
-    public override string ModuleVersion => "0.0.2";
+    public override string ModuleVersion => "0.0.3";
 
     public ConfigGen Config { get; set; } = null!;
     public void OnConfigParsed(ConfigGen config) { Config = config; }
@@ -186,7 +186,7 @@ public class FranugVip : BasePlugin, IPluginConfig<ConfigGen>
 
                 }
 
-                if (bHS[(int)player.Index])
+                if (bHS[(int)player.Index] && !PlayerHasSyringe(player))
                 {
                     player.GiveNamedItem("weapon_healthshot");
                 }
@@ -1005,6 +1005,31 @@ public class FranugVip : BasePlugin, IPluginConfig<ConfigGen>
     private bool IsPlayerValid(CCSPlayerController? player)
     {
         return (player != null && player.IsValid && !player.IsBot && !player.IsHLTV && player.PawnIsAlive);
+    }
+
+    private bool PlayerHasSyringe(CCSPlayerController? player)
+    {
+        if (player == null)
+        {
+            return false;
+        }
+
+        if (player.PlayerPawn?.Value == null || player.PlayerPawn?.Value.WeaponServices == null || player.PlayerPawn?.Value.ItemServices == null)
+            return false;
+
+        var weapons = player.PlayerPawn.Value.WeaponServices?.MyWeapons;
+        if (weapons == null) return false;
+        foreach (var weapon in weapons)
+        {
+            if (weapon != null && weapon.IsValid && weapon.Value != null && weapon.Value.IsValid)
+            {
+                if (weapon.Value.DesignerName.Contains("healthshot"))
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 }
 
