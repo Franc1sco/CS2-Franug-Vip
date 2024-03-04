@@ -40,7 +40,7 @@ public class FranugVip : BasePlugin, IPluginConfig<ConfigGen>
 {
     public override string ModuleName => "Franug Vip";
     public override string ModuleAuthor => "Franc1sco Franug";
-    public override string ModuleVersion => "0.0.1";
+    public override string ModuleVersion => "0.0.2";
 
     public ConfigGen Config { get; set; } = null!;
     public void OnConfigParsed(ConfigGen config) { Config = config; }
@@ -52,6 +52,7 @@ public class FranugVip : BasePlugin, IPluginConfig<ConfigGen>
     private readonly Dictionary<int, bool> bHp = new();
     private readonly Dictionary<int, int> bFov = new();
     private readonly Dictionary<int, bool> bBhop = new();
+    private readonly Dictionary<int, bool> bHS = new();
 
     public override void Load(bool hotReload)
     {
@@ -72,6 +73,7 @@ public class FranugVip : BasePlugin, IPluginConfig<ConfigGen>
                     bHp.Add((int)player.Index, true);
                     bFov.Add((int)player.Index, 90);
                     bBhop.Add((int)player.Index, true);
+                    bHS.Add((int)player.Index, true);
                     getPlayerData(player);
                 }
             }
@@ -92,6 +94,7 @@ public class FranugVip : BasePlugin, IPluginConfig<ConfigGen>
                 bHp.Add((int)player.Index, true);
                 bFov.Add((int)player.Index, 90);
                 bBhop.Add((int)player.Index, true);
+                bHS.Add((int)player.Index, true);
                 getPlayerData(player);
                 return HookResult.Continue;
             }
@@ -127,6 +130,10 @@ public class FranugVip : BasePlugin, IPluginConfig<ConfigGen>
                 if (bBhop.ContainsKey((int)player.Index))
                 {
                     bBhop.Remove((int)player.Index);
+                }
+                if (bHS.ContainsKey((int)player.Index))
+                {
+                    bHS.Remove((int)player.Index);
                 }
                 return HookResult.Continue;
             }
@@ -178,6 +185,11 @@ public class FranugVip : BasePlugin, IPluginConfig<ConfigGen>
                     playerPawn.ArmorValue = Config.VipArmor;
 
                 }
+
+                if (bHS[(int)player.Index])
+                {
+                    player.GiveNamedItem("weapon_healthshot");
+                }
                 ChangeFov(player, bFov[(int)player.Index]);
 
                 return;
@@ -228,8 +240,18 @@ public class FranugVip : BasePlugin, IPluginConfig<ConfigGen>
             }
             else
             {
-                _ = InsertTestQueryDataSQLite((int)player.SteamID);
-                bVip[(int)player.Index] = true;
+                result = await RecordTestAllExistsSQLite(player);
+                if (result)
+                {
+                    info.ReplyToCommand("Viptest is already on use for someone");
+                }
+                else
+                {
+
+                    _ = InsertTestQueryDataSQLite((int)player.SteamID);
+                    bVip[(int)player.Index] = true;
+                    info.ReplyToCommand("You got vip access");
+                }
             }
         }
         else
@@ -242,8 +264,18 @@ public class FranugVip : BasePlugin, IPluginConfig<ConfigGen>
             }
             else
             {
-                _ = InsertTestQueryDataMySQL((int)player.SteamID);
-                bVip[(int)player.Index] = true;
+                result = await RecordTestAllExistsMySQL(player);
+                if (result)
+                {
+                    info.ReplyToCommand("Viptest is already on use for someone");
+                }
+                else
+                {
+
+                    _ = InsertTestQueryDataMySQL((int)player.SteamID);
+                    bVip[(int)player.Index] = true;
+                    info.ReplyToCommand("You got vip access");
+                }
             }
         }
     }
@@ -365,6 +397,14 @@ public class FranugVip : BasePlugin, IPluginConfig<ConfigGen>
 
             enable = bBhop[(int)player.Index] ? "enabled" : "disabled";
             player.PrintToChat("Bhop is " + enable);
+        });
+
+        enable = bHS[(int)player.Index] ? "enabled" : "disabled";
+        menu.AddMenuOption("Syringe - " + enable, (player, option) => {
+            bHS[(int)player.Index] = !bHS[(int)player.Index];
+
+            enable = bHS[(int)player.Index] ? "enabled" : "disabled";
+            player.PrintToChat("Syringe is " + enable);
         });
 
         menu.AddMenuOption("Fov value: " + bFov[(int)player.Index], (player, option) => {
@@ -506,6 +546,34 @@ public class FranugVip : BasePlugin, IPluginConfig<ConfigGen>
         }
     }
 
+    private async Task<bool> RecordTestAllExistsSQLite(CCSPlayerController player)
+    {
+        try
+        {
+            await connectionSQLITE.OpenAsync();
+
+            var query = "SELECT * FROM franug_viptest WHERE time > @current;";
+
+            var command = new SqliteCommand(query, connectionSQLITE);
+            command.Parameters.AddWithValue("@current", DateTime.UtcNow.GetUnixEpoch());
+            var reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                return true;
+            }
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Franug-Vip] RecordTestAllExistsSQLite ******* An error occurred: {ex.Message}");
+            return false;
+        }
+        finally
+        {
+            await connectionSQLITE?.CloseAsync();
+        }
+    }
+
     private async Task<bool> RecordTestExistsMySQL(CCSPlayerController player)
     {
         try
@@ -526,6 +594,34 @@ public class FranugVip : BasePlugin, IPluginConfig<ConfigGen>
         catch (Exception ex)
         {
             Console.WriteLine($"[Franug-Vip] RecordTestExistsMySQL ******* An error occurred: {ex.Message}");
+            return false;
+        }
+        finally
+        {
+            await connectionMySQL?.CloseAsync();
+        }
+    }
+
+    private async Task<bool> RecordTestAllExistsMySQL(CCSPlayerController player)
+    {
+        try
+        {
+            await connectionMySQL.OpenAsync();
+
+            var query = "SELECT * FROM franug_viptest WHERE time > @current;";
+
+            var command = new MySqlCommand(query, connectionMySQL);
+            command.Parameters.AddWithValue("@current", DateTime.UtcNow.GetUnixEpoch());
+            var reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                return true;
+            }
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Franug-Vip] RecordTestAllExistsMySQL ******* An error occurred: {ex.Message}");
             return false;
         }
         finally
@@ -728,7 +824,7 @@ public class FranugVip : BasePlugin, IPluginConfig<ConfigGen>
             }
             else
             {
-                player.PrintToChat("You got vip");
+                player.PrintToChat("You got vip access");
                 bVip[(int)player.Index] = true;
             }
         }
